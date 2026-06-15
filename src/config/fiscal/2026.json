@@ -1,0 +1,126 @@
+{
+  "year": 2026,
+  "currency": "CAD",
+  "amountUnit": "cents",
+  "_comment": "SOURCE UNIQUE DE VÉRITÉ pour les paramètres fiscaux 2026. Montants en CENTS (entiers). Paliers et cotisations validés auprès des sources officielles (ARC / Revenu Québec / Retraite Québec / RQAP). Le moteur calcule les cotisations à partir des taux et seuils; aucun montant max codé en dur. RRQ décomposé en base / 1er supplémentaire / 2e supplémentaire pour permettre le traitement fiscal exact (base employé = crédit; base employeur + bonifié = déduction).",
+  "_sources": {
+    "federalBrackets": "ARC / canada.ca — paliers 2026 (premier taux 14 %)",
+    "quebecBrackets": "Revenu Québec — paliers 2026, indexation 2,05 %",
+    "basicPersonalAmount": "Féd 16 452 $ / QC 18 952 $ — 2026",
+    "rrq": "Retraite Québec 2026 — autonome paie les 2 parts. Base 5,3 %/part (10,6 % total), 1er suppl. 1 %/part (2 % total) jusqu'au MGA 74 600 $; 2e suppl. 4 %/part (8 % total) entre MGA et MSGA 85 000 $. Exemption 3 500 $.",
+    "rqap": "RQAP 2026 — taux travailleur autonome 0,764 % (baisse de 8 %), MRA 103 000 $",
+    "quebecAbatement": "Abattement du Québec : 16,5 % de l'impôt fédéral de base",
+    "rrqTaxTreatment": "Féd : base employé -> crédit (taux 14 %); base employeur + tout le bonifié -> déduction (ligne 21200). QC : base employé -> aucun allègement (déjà dans montant de base); base employeur + bonifié -> déduction (ligne 248)."
+  },
+
+  "federalBrackets": [
+    { "upToCents": 5852300, "rate": 0.14 },
+    { "upToCents": 11704500, "rate": 0.205 },
+    { "upToCents": 18144000, "rate": 0.26 },
+    { "upToCents": 25848200, "rate": 0.29 },
+    { "upToCents": null, "rate": 0.33 }
+  ],
+
+  "quebecBrackets": [
+    { "upToCents": 5434500, "rate": 0.14 },
+    { "upToCents": 10868000, "rate": 0.19 },
+    { "upToCents": 13224500, "rate": 0.24 },
+    { "upToCents": null, "rate": 0.2575 }
+  ],
+
+  "basicPersonalAmount": {
+    "_comment": "Montant personnel de base. Crédit = montant x taux du plus bas palier (féd 14 %, QC 14 %).",
+    "federalCents": 1645200,
+    "quebecCents": 1895200
+  },
+
+  "quebecAbatement": {
+    "_comment": "Abattement du Québec : réduit l'impôt fédéral de base de 16,5 %. INDISPENSABLE sinon impôt fédéral surestimé.",
+    "rate": 0.165
+  },
+
+  "rrq": {
+    "_comment": "RRQ TRAVAILLEUR AUTONOME 2026 — les taux ci-dessous sont les taux TOTAUX (deux parts). 'employeeShare' = fraction attribuée à la part 'employé' (0.5) pour séparer crédit vs déduction. Composantes : base (crédit pour part employé au féd, déduction pour part employeur), supplémentaires = entièrement déductibles (bonifié).",
+    "basicExemptionCents": 350000,
+    "maxPensionableEarningsCents": 7460000,
+    "additionalMaxPensionableEarningsCents": 8500000,
+    "employeeShare": 0.5,
+    "components": {
+      "base": {
+        "_comment": "Régime de base. Assiette : exemption -> MGA. Taux total 10,6 % (5,3 %/part).",
+        "totalRate": 0.106,
+        "fromCents": 350000,
+        "toCents": 7460000,
+        "federalEmployeeTreatment": "credit",
+        "federalEmployerTreatment": "deduction",
+        "quebecEmployeeTreatment": "none",
+        "quebecEmployerTreatment": "deduction"
+      },
+      "firstAdditional": {
+        "_comment": "1er supplémentaire (bonifié). Assiette : exemption -> MGA. Taux total 2 % (1 %/part). Entièrement déductible.",
+        "totalRate": 0.02,
+        "fromCents": 350000,
+        "toCents": 7460000,
+        "federalTreatment": "deduction",
+        "quebecTreatment": "deduction"
+      },
+      "secondAdditional": {
+        "_comment": "2e supplémentaire (bonifié). Assiette : MGA -> MSGA. Taux total 8 % (4 %/part). Entièrement déductible.",
+        "totalRate": 0.08,
+        "fromCents": 7460000,
+        "toCents": 8500000,
+        "federalTreatment": "deduction",
+        "quebecTreatment": "deduction"
+      }
+    }
+  },
+
+  "rqap": {
+    "_comment": "RQAP — taux TRAVAILLEUR AUTONOME 2026 (baisse de 8 %). Cotisation = min(revenu, MRA) x taux. Part employeur déductible; part employé -> crédit féd / rien au QC. employeeShare sépare les deux.",
+    "selfEmployedRate": 0.00764,
+    "maxInsurableEarningsCents": 10300000,
+    "employeeShare": 0.5
+  },
+
+  "creditRates": {
+    "_comment": "Taux appliqués aux crédits d'impôt non remboursables (montant de base, part employé RRQ/RQAP au fédéral). Égaux au taux du plus bas palier.",
+    "federal": 0.14,
+    "quebec": 0.14
+  },
+
+  "salesTax": {
+    "_comment": "Taxes de vente 2026. TPS 5 % (fédéral, CTI), TVQ 9,975 % (Québec, RTI). Calculées sur le montant avant taxes. La récupération (CTI/RTI) sur une dépense suit son % déductible. L'assurance n'est pas récupérable au RTI (non géré automatiquement ici — à raffiner).",
+    "gstRate": 0.05,
+    "qstRate": 0.09975
+  },
+
+  "installments": {
+    "_comment": "Acomptes provisionnels 2026. Seuils d'impôt NET (hors RRQ/RQAP, qui sont réglés à la production). Fédéral 3 000 $, Québec 1 800 $, évalués par administration. Si le seuil est franchi, 4 versements égaux aux dates indiquées. NOTE : la règle officielle évalue aussi une année antérieure; l'app n'estime que sur l'année courante.",
+    "federalThresholdCents": 300000,
+    "quebecThresholdCents": 180000,
+    "dueDates": ["2026-03-15", "2026-06-15", "2026-09-15", "2026-12-15"]
+  },
+
+  "expenseCategories": {
+    "_comment": "Taux de déductibilité par catégorie. deductiblePercent = pourcentage fixe (0..1). 'vehicleProRata' = portion déductible selon le ratio km affaires / km totaux, calculée dynamiquement. Catégories alignées sur le PRD.",
+    "essence_carburant":         { "label": "Essence / carburant",                "vehicleProRata": true },
+    "frais_vehicule":            { "label": "Frais de véhicule (entretien, assurance, immatriculation)", "vehicleProRata": true },
+    "repas_representation":      { "label": "Repas et représentation",             "deductiblePercent": 0.5 },
+    "fournitures_bureau":        { "label": "Fournitures de bureau / logiciels",   "deductiblePercent": 1.0 },
+    "telephone_internet":        { "label": "Téléphone / Internet",                "deductiblePercent": 1.0, "_note": "Idéalement % usage affaires; 100 % par défaut." },
+    "deplacements_logement":     { "label": "Déplacements / hébergement",          "deductiblePercent": 1.0 },
+    "loyer_bureau_domicile":     { "label": "Loyer / bureau à domicile",           "deductiblePercent": 1.0, "_note": "Idéalement % superficie; à raffiner." },
+    "publicite_marketing":       { "label": "Publicité et marketing",              "deductiblePercent": 1.0 },
+    "honoraires_professionnels": { "label": "Honoraires professionnels / comptabilité", "deductiblePercent": 1.0 },
+    "equipement_outils":         { "label": "Équipement / outils",                 "deductiblePercent": 1.0, "_note": "Amortissement (DPA) hors périmètre v1." },
+    "autre":                     { "label": "Autre",                               "deductiblePercent": 1.0, "_note": "Variable — l'utilisateur ajuste le %." }
+  },
+
+  "_aValider": [
+    "Crédit fédéral part employé RRQ/RQAP : calculé sur la cotisation réelle de base (part employé). À confirmer avec un fiscaliste vs. plafonnement sur la contribution max de base.",
+    "Traitement québécois part employé base : aucun allègement distinct (inclus dans montant de base) — modélisé comme tel.",
+    "Bureau à domicile / téléphone : 100 % par défaut, devraient utiliser un % d'usage.",
+    "Équipement : DPA hors périmètre v1.",
+    "Acomptes provisionnels (v1.5)."
+  ]
+}
