@@ -21,6 +21,7 @@ import {
   isEncryptionEnabled,
 } from './encryptionManager';
 import type { Income } from '../../core/models/income';
+import { generateSalt, deriveKey, generateDataKeyBytes, wrapDataKey, importDataKey } from './crypto';
 
 const INCOME: Income = {
   id: 'r1',
@@ -184,6 +185,34 @@ describe('encryptionManager (format v2, deux bases)', () => {
 
     await reload();
     expect(await unlock('ancien-format')).toBe(true);
+    expect((await storage.loadAll()).incomes).toEqual([INCOME]);
+  });
+
+  it('trousseau antérieur à la normalisation : mis à niveau et persisté au déverrouillage', async () => {
+    const nfd = 'Été-Café-2026!'.normalize('NFD');
+    const nfc = 'Été-Café-2026!'.normalize('NFC');
+    // Base chiffrée construite par une version antérieure (trousseau sans normalisation).
+    const raw = generateDataKeyBytes();
+    const salt = generateSalt();
+    const wrappedKey = await wrapDataKey(await deriveKey(nfd, salt), raw);
+    const old = new EncryptionSession();
+    Object.assign(old, { key: await importDataKey(raw) });
+    const db = new IndexedDbProvider(SECURE_DB_NAME);
+    await db.init();
+    await new EncryptedStorageProvider(db, old).putIncome(INCOME);
+    await db.setMeta('encryptionKeyring', JSON.stringify({ version: 2, salt, wrappedKey }));
+    await db.setMeta(META_ENCRYPTION_ENABLED, '1');
+    db.close();
+
+    await reload();
+    expect(getStorageMode()).toBe('secure');
+    expect(await unlock(nfc)).toBe(true); // saisi sur un autre appareil
+    expect((await storage.loadAll()).incomes).toEqual([INCOME]);
+    const stored = JSON.parse((await secureStore.raw.getMeta('encryptionKeyring'))!);
+    expect(stored.normalization).toBe('NFC');
+
+    await reload();
+    expect(await unlock(nfd)).toBe(true);
     expect((await storage.loadAll()).incomes).toEqual([INCOME]);
   });
 });

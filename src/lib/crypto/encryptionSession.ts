@@ -18,9 +18,21 @@ import {
   importDataKey,
   wrapDataKey,
   unwrapDataKey,
+  normalizePassword,
+  passwordCandidates,
   type EncryptedPayload,
   type Keyring,
 } from './crypto';
+
+/** Résultat d'un déverrouillage par trousseau. */
+export interface KeyringUnlockResult {
+  ok: boolean;
+  /**
+   * Trousseau réenveloppé avec le mot de passe normalisé, à persister quand
+   * le trousseau ouvert était antérieur à la normalisation. null sinon.
+   */
+  upgradedKeyring: Keyring | null;
+}
 
 export class EncryptionSession {
   private key: CryptoKey | null = null;
@@ -40,23 +52,27 @@ export class EncryptionSession {
   async createKeyring(password: string): Promise<Keyring> {
     const raw = generateDataKeyBytes();
     try {
-      const salt = generateSalt();
-      const wrappingKey = await deriveKey(password, salt);
-      const wrappedKey = await wrapDataKey(wrappingKey, raw);
+      const keyring = await wrapForPassword(raw, password);
       this.key = await importDataKey(raw);
-      return { version: 2, salt, wrappedKey };
+      return keyring;
     } finally {
       raw.fill(0);
     }
   }
 
-  /** Déverrouille avec un trousseau v2. Retourne false si le mot de passe est incorrect. */
-  async unlockWithKeyring(password: string, keyring: Keyring): Promise<boolean> {
+  /**
+   * Déverrouille avec un trousseau v2. ok = false si le mot de passe est
+   * incorrect. Un trousseau antérieur à la normalisation est réenveloppé
+   * (même clé de données) avec le mot de passe normalisé : upgradedKeyring.
+   */
+  async unlockWithKeyring(password: string, keyring: Keyring): Promise<KeyringUnlockResult> {
     const raw = await this.openKeyring(password, keyring);
-    if (!raw) return false;
+    if (!raw) return { ok: false, upgradedKeyring: null };
     try {
       this.key = await importDataKey(raw);
-      return true;
+      const upgradedKeyring =
+        keyring.normalization === 'NFC' ? null : await wrapForPassword(raw, password);
+      return { ok: true, upgradedKeyring };
     } finally {
       raw.fill(0);
     }
@@ -75,11 +91,9 @@ export class EncryptionSession {
     const raw = await this.openKeyring(oldPassword, keyring);
     if (!raw) return null;
     try {
-      const salt = generateSalt();
-      const wrappingKey = await deriveKey(newPassword, salt);
-      const wrappedKey = await wrapDataKey(wrappingKey, raw);
+      const next = await wrapForPassword(raw, newPassword);
       this.key = await importDataKey(raw);
-      return { version: 2, salt, wrappedKey };
+      return next;
     } finally {
       raw.fill(0);
     }
@@ -87,12 +101,15 @@ export class EncryptionSession {
 
   /** Désenveloppe la clé de données (octets bruts) ou null si mot de passe incorrect. */
   private async openKeyring(password: string, keyring: Keyring): Promise<Uint8Array<ArrayBuffer> | null> {
-    const wrappingKey = await deriveKey(password, keyring.salt);
-    try {
-      return await unwrapDataKey(wrappingKey, keyring.wrappedKey);
-    } catch {
-      return null;
+    for (const candidate of passwordCandidates(password, keyring.normalization === 'NFC')) {
+      const wrappingKey = await deriveKey(candidate, keyring.salt);
+      try {
+        return await unwrapDataKey(wrappingKey, keyring.wrappedKey);
+      } catch {
+        // mauvaise forme ou mauvais mot de passe : essayer la suivante
+      }
     }
+    return null;
   }
 
   // --- Format v1 (hérité) : clé dérivée directement du mot de passe ---
@@ -116,11 +133,13 @@ export class EncryptionSession {
    * Retourne true si le mot de passe est correct.
    */
   async unlock(password: string, salt: string, token: EncryptedPayload): Promise<boolean> {
-    const key = await deriveKey(password, salt);
-    const ok = await verifyKey(key, token);
-    if (ok) {
-      this.key = key;
-      return true;
+    // Format v1 : dérivé de la saisie brute, forme inconnue.
+    for (const candidate of passwordCandidates(password, false)) {
+      const key = await deriveKey(candidate, salt);
+      if (await verifyKey(key, token)) {
+        this.key = key;
+        return true;
+      }
     }
     return false;
   }
@@ -147,6 +166,14 @@ export class EncryptionSession {
   async decryptImage(payload: EncryptedPayload, mimeType: string): Promise<Blob> {
     return decryptBlob(this.requireKey(), payload, mimeType);
   }
+}
+
+/** Enveloppe une clé de données avec le mot de passe NORMALISÉ (nouveau sel). */
+async function wrapForPassword(raw: Uint8Array<ArrayBuffer>, password: string): Promise<Keyring> {
+  const salt = generateSalt();
+  const wrappingKey = await deriveKey(normalizePassword(password), salt);
+  const wrappedKey = await wrapDataKey(wrappingKey, raw);
+  return { version: 2, salt, wrappedKey, normalization: 'NFC' };
 }
 
 /** Instance unique de session de chiffrement pour l'application. */

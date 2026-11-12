@@ -144,6 +144,35 @@ export interface Keyring {
   version: 2;
   salt: string;              // base64
   wrappedKey: EncryptedPayload;
+  /**
+   * 'NFC' : clé d'enveloppe dérivée du mot de passe normalisé en NFC.
+   * Absent : trousseau antérieur, dérivé du mot de passe tel que saisi.
+   */
+  normalization?: 'NFC';
+}
+
+// --- Normalisation Unicode du mot de passe ---
+//
+// Un même caractère accentué peut être encodé de deux façons : « é » précomposé
+// (NFC, courant sous Windows et Android) ou « e » + accent combinant (NFD,
+// fréquent sous macOS et iOS). Sans normalisation, le même mot de passe tapé
+// sur deux appareils donne des octets différents, donc une autre clé : le
+// déverrouillage échoue. On dérive donc toujours à partir de la forme NFC.
+
+/** Forme canonique du mot de passe, utilisée pour toute nouvelle dérivation. */
+export function normalizePassword(password: string): string {
+  return password.normalize('NFC');
+}
+
+/**
+ * Formes du mot de passe à essayer pour ouvrir un trousseau. Un trousseau
+ * normalisé n'accepte que la forme NFC; un trousseau antérieur a été dérivé
+ * de la saisie brute, dont on ignore la forme : on essaie la saisie, puis
+ * ses formes NFC et NFD.
+ */
+export function passwordCandidates(password: string, normalized: boolean): string[] {
+  if (normalized) return [normalizePassword(password)];
+  return [...new Set([password, password.normalize('NFC'), password.normalize('NFD')])];
 }
 
 /** Génère les octets bruts d'une nouvelle clé de données (à effacer après usage). */

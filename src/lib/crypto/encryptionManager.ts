@@ -69,7 +69,13 @@ export async function unlock(password: string): Promise<boolean> {
   const mode = getStorageMode();
   if (mode === 'secure') {
     const keyring = await readKeyring();
-    return keyring ? encryptionSession.unlockWithKeyring(password, keyring) : false;
+    if (!keyring) return false;
+    const { ok, upgradedKeyring } = await encryptionSession.unlockWithKeyring(password, keyring);
+    // Trousseau antérieur à la normalisation : remplacé en une seule écriture.
+    if (ok && upgradedKeyring) {
+      await secureStore.raw.setMeta(META_KEYRING, JSON.stringify(upgradedKeyring));
+    }
+    return ok;
   }
   if (mode === 'legacy') {
     const salt = await storage.getMeta(META_LEGACY_SALT);
@@ -119,7 +125,7 @@ export async function disableEncryption(password: string): Promise<boolean> {
   if (getStorageMode() !== 'secure') return false;
   const keyring = await readKeyring();
   if (!keyring) return false;
-  const ok = await encryptionSession.unlockWithKeyring(password, keyring);
+  const { ok } = await encryptionSession.unlockWithKeyring(password, keyring);
   if (!ok) return false;
 
   const snapshot = await takeSnapshot();
