@@ -5,6 +5,7 @@ import {
   expenseTaxRecoverable,
   buildSalesTaxSummary,
   extractSalesTaxFromTotal,
+  splitIncomeTotal,
 } from './salesTax';
 import { deductibleExpenseAmount } from './expenseCalc';
 import { loadFiscalConfig } from './loadConfig';
@@ -105,5 +106,18 @@ describe('deductibleExpenseAmount (montant = total taxes comprises)', () => {
   });
   it('non inscrit, repas à 50 % : total x 50 %', () => {
     expect(deductibleExpenseAmount(meal, config, false)).toBe(5749);
+  });
+});
+
+describe('splitIncomeTotal', () => {
+  it('ventile un total en montant avant taxes + TPS + TVQ, sans perte de cent', () => {
+    const split = splitIncomeTotal(11498, config);
+    expect(split).toEqual({ amountCents: 10000, gstCents: 500, qstCents: 998 });
+    expect(split.amountCents + split.gstCents + split.qstCents).toBe(11498);
+  });
+  it('utilise les taxes saisies manuellement si fournies', () => {
+    expect(splitIncomeTotal(10500, config, { gstCents: 500, qstCents: 0 })).toEqual({
+      amountCents: 10000, gstCents: 500, qstCents: 0,
+    });
   });
 });

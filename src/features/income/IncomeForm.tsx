@@ -5,9 +5,9 @@ import { useFiscalStore } from '../../store/useFiscalStore';
 import { Field, TextInput, Checkbox, Button } from '../../components/FormField';
 import { TaxFields } from '../../components/TaxFields';
 import { parseDollarsToCents } from '../../lib/format/parseMoney';
-import { centsToDollars } from '../../lib/format/money';
+import { centsToDollars, formatCents } from '../../lib/format/money';
 import { loadFiscalConfig } from '../../core/tax/loadConfig';
-import { computeSalesTax } from '../../core/tax/salesTax';
+import { computeSalesTax, extractSalesTaxFromTotal, splitIncomeTotal } from '../../core/tax/salesTax';
 import type { Income } from '../../core/models/income';
 
 const config = loadFiscalConfig(2026);
@@ -34,6 +34,8 @@ export function IncomeForm({ editing, onDone, onCancel }: IncomeFormProps) {
   const [client, setClient] = useState('');
   const [description, setDescription] = useState('');
   const [gstQst, setGstQst] = useState(false);
+  // Le montant saisi inclut-il les taxes facturées au client ?
+  const [taxesIncluded, setTaxesIncluded] = useState(false);
   const [taxManual, setTaxManual] = useState(false);
   const [gstValue, setGstValue] = useState('');
   const [qstValue, setQstValue] = useState('');
@@ -48,6 +50,8 @@ export function IncomeForm({ editing, onDone, onCancel }: IncomeFormProps) {
       setClient(editing.client ?? '');
       setDescription(editing.description ?? '');
       setGstQst(editing.gstQstCollected ?? false);
+      // Le revenu est stocké avant taxes : on le réaffiche tel quel.
+      setTaxesIncluded(false);
       const hasManual = editing.gstCents !== undefined && editing.qstCents !== undefined;
       setTaxManual(hasManual);
       setGstValue(hasManual ? String(centsToDollars(editing.gstCents!)).replace('.', ',') : '');
@@ -58,6 +62,7 @@ export function IncomeForm({ editing, onDone, onCancel }: IncomeFormProps) {
       setClient('');
       setDescription('');
       setGstQst(false);
+      setTaxesIncluded(false);
       setTaxManual(false);
       setGstValue('');
       setQstValue('');
@@ -66,7 +71,19 @@ export function IncomeForm({ editing, onDone, onCancel }: IncomeFormProps) {
   }, [editing]);
 
   const amountCentsForTax = parseDollarsToCents(amount) ?? 0;
-  const autoTax = computeSalesTax(amountCentsForTax, config);
+  const included = gstQst && taxesIncluded;
+  const autoTax = included
+    ? extractSalesTaxFromTotal(amountCentsForTax, config)
+    : computeSalesTax(amountCentsForTax, config);
+  const manualTaxes = () => ({
+    gstCents: parseDollarsToCents(gstValue) ?? 0,
+    qstCents: parseDollarsToCents(qstValue) ?? 0,
+  });
+  const useManual = taxRegistered && gstQst && taxManual;
+  // Aperçu du montant avant taxes quand le total inclut les taxes.
+  const previewSplit = included
+    ? splitIncomeTotal(amountCentsForTax, config, useManual ? manualTaxes() : undefined)
+    : null;
 
   const handleSave = async () => {
     const cents = parseDollarsToCents(amount);
@@ -80,17 +97,31 @@ export function IncomeForm({ editing, onDone, onCancel }: IncomeFormProps) {
     }
     setError(null);
     setSaving(true);
+    // Total taxes comprises : on stocke le montant AVANT taxes et les taxes
+    // extraites, pour que le revenu imposable n'inclue jamais la TPS/TVQ.
+    const split = included
+      ? splitIncomeTotal(cents, config, useManual ? manualTaxes() : undefined)
+      : null;
+    if (split && split.amountCents <= 0) {
+      setError('Les taxes ne peuvent pas dépasser le montant total.');
+      setSaving(false);
+      return;
+    }
     const income: Income = {
       id: editing?.id ?? crypto.randomUUID(),
       date,
-      amountCents: cents,
+      amountCents: split ? split.amountCents : cents,
       client: client.trim() || undefined,
       description: description.trim() || undefined,
       gstQstCollected: gstQst,
     };
-    if (taxRegistered && gstQst && taxManual) {
-      income.gstCents = parseDollarsToCents(gstValue) ?? 0;
-      income.qstCents = parseDollarsToCents(qstValue) ?? 0;
+    if (split) {
+      income.gstCents = split.gstCents;
+      income.qstCents = split.qstCents;
+    } else if (useManual) {
+      const t = manualTaxes();
+      income.gstCents = t.gstCents;
+      income.qstCents = t.qstCents;
     }
     if (isEdit) {
       await updateIncome(income);
@@ -124,6 +155,21 @@ export function IncomeForm({ editing, onDone, onCancel }: IncomeFormProps) {
       </Field>
 
       <Checkbox id="inc-gst" checked={gstQst} onChange={setGstQst} label="TPS/TVQ perçue sur ce revenu" />
+
+      {gstQst && (
+        <Checkbox
+          id="inc-taxes-included"
+          checked={taxesIncluded}
+          onChange={setTaxesIncluded}
+          label="Ce montant inclut la TPS et la TVQ"
+        />
+      )}
+
+      {previewSplit && amountCentsForTax > 0 && (
+        <p className="mb-4 text-sm text-ardoise-600">
+          Revenu avant taxes : <span className="tabular-nums font-medium">{formatCents(previewSplit.amountCents)}</span>
+        </p>
+      )}
 
       {taxRegistered && gstQst && (
         <TaxFields

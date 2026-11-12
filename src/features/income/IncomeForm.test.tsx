@@ -84,4 +84,34 @@ describe('IncomeForm', () => {
     fireEvent.click(screen.getByLabelText(/TPS\/TVQ perçue/i));
     expect(screen.getByText('Ajuster les taxes manuellement')).toBeInTheDocument();
   });
+
+  it('total taxes comprises : stocke le revenu avant taxes et les taxes extraites', async () => {
+    taxRegistered = true;
+    render(<IncomeForm />);
+    fireEvent.change(screen.getByLabelText('Montant'), { target: { value: '1149,75' } });
+    fireEvent.click(screen.getByLabelText('TPS/TVQ perçue sur ce revenu'));
+    fireEvent.click(screen.getByLabelText('Ce montant inclut la TPS et la TVQ'));
+    expect(screen.getByText(/Revenu avant taxes/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Enregistrer le revenu'));
+
+    await waitFor(() => expect(addIncome).toHaveBeenCalledOnce());
+    const arg = addIncome.mock.calls[0]![0];
+    expect(arg.amountCents).toBe(100000); // 1 149,75 $ - 50,00 $ - 99,75 $
+    expect(arg.gstCents).toBe(5000);
+    expect(arg.qstCents).toBe(9975);
+    expect(arg.gstQstCollected).toBe(true);
+  });
+
+  it('montant avant taxes (case non cochée) : montant conservé tel quel', async () => {
+    taxRegistered = true;
+    render(<IncomeForm />);
+    fireEvent.change(screen.getByLabelText('Montant'), { target: { value: '1000,00' } });
+    fireEvent.click(screen.getByLabelText('TPS/TVQ perçue sur ce revenu'));
+    fireEvent.click(screen.getByText('Enregistrer le revenu'));
+
+    await waitFor(() => expect(addIncome).toHaveBeenCalledOnce());
+    const arg = addIncome.mock.calls[0]![0];
+    expect(arg.amountCents).toBe(100000);
+    expect(arg.gstCents).toBeUndefined();
+  });
 });

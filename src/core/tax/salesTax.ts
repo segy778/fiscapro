@@ -44,6 +44,31 @@ export function extractSalesTaxFromTotal(totalCents: number, config: FiscalConfi
   };
 }
 
+/** Revenu ventilé : montant avant taxes + taxes perçues. */
+export interface IncomeSplit {
+  amountCents: number;
+  gstCents: number;
+  qstCents: number;
+}
+
+/**
+ * Ventile un revenu saisi TAXES COMPRISES en montant avant taxes + TPS/TVQ.
+ * Les taxes saisies manuellement (si fournies) priment sur l'extraction.
+ * Le montant avant taxes est le reste, pour que la somme égale le total.
+ */
+export function splitIncomeTotal(
+  totalCents: number,
+  config: FiscalConfig,
+  manualTaxes?: TaxAmounts,
+): IncomeSplit {
+  const taxes = manualTaxes ?? extractSalesTaxFromTotal(totalCents, config);
+  return {
+    amountCents: totalCents - taxes.gstCents - taxes.qstCents,
+    gstCents: taxes.gstCents,
+    qstCents: taxes.qstCents,
+  };
+}
+
 /**
  * Taxe payée sur une dépense : montants saisis s'ils existent (ex. facture
  * sans taxe, assurance), sinon extraite du total taxes comprises.
