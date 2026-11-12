@@ -221,6 +221,11 @@ export function SettingsPage() {
               Protégez vos données financières avec un mot de passe. Une fois activé,
               il faudra l'entrer à chaque ouverture pour accéder à vos données.
             </p>
+            <p className="mt-2 text-sm text-ardoise-500">
+              Activez-le le plus tôt possible. À l'activation, vos données sont copiées
+              dans un espace chiffré et l'ancien espace est supprimé, mais des traces des
+              données saisies avant peuvent subsister sur le disque de l'appareil.
+            </p>
             <div className="mt-3 rounded-lg border border-ambre-500/30 bg-ambre-50 p-3">
               <p className="text-sm text-ambre-700">
                 <span className="font-semibold">Important :</span> si vous oubliez ce mot

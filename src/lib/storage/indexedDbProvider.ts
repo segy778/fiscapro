@@ -1,12 +1,13 @@
 // Implémentation IndexedDB de StorageProvider via `idb`.
 // Quatre object stores, clés primaires = id (string).
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { openDB, deleteDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { StorageProvider, FiscalData } from './StorageProvider';
 import type { Income, Expense } from '../../core/models/income';
 import type { Trip, Vehicle } from '../../core/models/vehicle';
 
-const DB_NAME = 'fiscapro-qc';
+/** Nom de la base par défaut (données en clair). */
+export const DEFAULT_DB_NAME = 'fiscapro-qc';
 const DB_VERSION = 3;
 
 interface FiscaproDB extends DBSchema {
@@ -20,10 +21,21 @@ interface FiscaproDB extends DBSchema {
 
 export class IndexedDbProvider implements StorageProvider {
   private db: IDBPDatabase<FiscaproDB> | null = null;
+  readonly dbName: string;
+
+  constructor(dbName: string = DEFAULT_DB_NAME) {
+    this.dbName = dbName;
+  }
 
   async init(): Promise<void> {
     if (this.db) return;
-    this.db = await openDB<FiscaproDB>(DB_NAME, DB_VERSION, {
+    this.db = await openDB<FiscaproDB>(this.dbName, DB_VERSION, {
+      // Un autre onglet veut supprimer ou mettre à niveau cette base : on
+      // libère la connexion. Toute opération ultérieure ici échouera
+      // (requireDb) au lieu d'écrire dans une base périmée.
+      blocking: () => {
+        this.close();
+      },
       upgrade(db) {
         if (!db.objectStoreNames.contains('incomes')) {
           db.createObjectStore('incomes', { keyPath: 'id' });
@@ -45,6 +57,21 @@ export class IndexedDbProvider implements StorageProvider {
         }
       },
     });
+  }
+
+  /** Ferme la connexion. Un init() ultérieur rouvre (ou recrée) la base. */
+  close(): void {
+    this.db?.close();
+    this.db = null;
+  }
+
+  /**
+   * Supprime la base entière (fichiers compris) : plus sûr qu'écraser les
+   * enregistrements, que le moteur du navigateur peut conserver physiquement.
+   */
+  async destroy(): Promise<void> {
+    this.close();
+    await deleteDB(this.dbName);
   }
 
   private requireDb(): IDBPDatabase<FiscaproDB> {

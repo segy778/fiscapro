@@ -14,7 +14,12 @@ import {
   decryptString,
   encryptBlob,
   decryptBlob,
+  generateDataKeyBytes,
+  importDataKey,
+  wrapDataKey,
+  unwrapDataKey,
   type EncryptedPayload,
+  type Keyring,
 } from './crypto';
 
 export class EncryptionSession {
@@ -25,8 +30,77 @@ export class EncryptionSession {
     return this.key !== null;
   }
 
+  // --- Format v2 : clé de données enveloppée (voir crypto.ts) ---
+
   /**
-   * Configure un nouveau mot de passe. Retourne le sel et le jeton de
+   * Crée une NOUVELLE clé de données aléatoire, l'enveloppe avec le mot de
+   * passe et déverrouille la session avec elle. Retourne le trousseau à
+   * persister (en une seule écriture).
+   */
+  async createKeyring(password: string): Promise<Keyring> {
+    const raw = generateDataKeyBytes();
+    try {
+      const salt = generateSalt();
+      const wrappingKey = await deriveKey(password, salt);
+      const wrappedKey = await wrapDataKey(wrappingKey, raw);
+      this.key = await importDataKey(raw);
+      return { version: 2, salt, wrappedKey };
+    } finally {
+      raw.fill(0);
+    }
+  }
+
+  /** Déverrouille avec un trousseau v2. Retourne false si le mot de passe est incorrect. */
+  async unlockWithKeyring(password: string, keyring: Keyring): Promise<boolean> {
+    const raw = await this.openKeyring(password, keyring);
+    if (!raw) return false;
+    try {
+      this.key = await importDataKey(raw);
+      return true;
+    } finally {
+      raw.fill(0);
+    }
+  }
+
+  /**
+   * Réenveloppe la MÊME clé de données avec un nouveau mot de passe (nouveau
+   * sel). Les données chiffrées restent valides telles quelles. Retourne null
+   * si l'ancien mot de passe est incorrect. Déverrouille la session.
+   */
+  async rewrapKeyring(
+    oldPassword: string,
+    newPassword: string,
+    keyring: Keyring,
+  ): Promise<Keyring | null> {
+    const raw = await this.openKeyring(oldPassword, keyring);
+    if (!raw) return null;
+    try {
+      const salt = generateSalt();
+      const wrappingKey = await deriveKey(newPassword, salt);
+      const wrappedKey = await wrapDataKey(wrappingKey, raw);
+      this.key = await importDataKey(raw);
+      return { version: 2, salt, wrappedKey };
+    } finally {
+      raw.fill(0);
+    }
+  }
+
+  /** Désenveloppe la clé de données (octets bruts) ou null si mot de passe incorrect. */
+  private async openKeyring(password: string, keyring: Keyring): Promise<Uint8Array<ArrayBuffer> | null> {
+    const wrappingKey = await deriveKey(password, keyring.salt);
+    try {
+      return await unwrapDataKey(wrappingKey, keyring.wrappedKey);
+    } catch {
+      return null;
+    }
+  }
+
+  // --- Format v1 (hérité) : clé dérivée directement du mot de passe ---
+  // Conservé pour déverrouiller les bases créées avant le format v2, le temps
+  // de les migrer (voir encryptionManager.unlock).
+
+  /**
+   * [v1 hérité] Configure un nouveau mot de passe. Retourne le sel et le jeton de
    * vérification à persister. Déverrouille la session.
    */
   async setup(password: string): Promise<{ salt: string; token: EncryptedPayload }> {
@@ -38,7 +112,7 @@ export class EncryptionSession {
   }
 
   /**
-   * Tente de déverrouiller avec un mot de passe, le sel et le jeton stockés.
+   * [v1 hérité] Tente de déverrouiller avec un mot de passe, le sel et le jeton stockés.
    * Retourne true si le mot de passe est correct.
    */
   async unlock(password: string, salt: string, token: EncryptedPayload): Promise<boolean> {

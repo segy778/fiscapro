@@ -124,3 +124,67 @@ export async function verifyKey(key: CryptoKey, token: EncryptedPayload): Promis
     return false;
   }
 }
+
+// --- Enveloppe de clé (format v2) ---
+//
+// Les données sont chiffrées avec une CLÉ DE DONNÉES aléatoire de 256 bits.
+// Cette clé est elle-même chiffrée (« enveloppée ») par une clé dérivée du mot
+// de passe (PBKDF2). Conséquences :
+//  - changer de mot de passe = réenvelopper la clé de données, sans toucher
+//    aux données (une seule écriture, donc atomique);
+//  - un déchiffrement réussi de l'enveloppe (AES-GCM authentifié) prouve que
+//    le mot de passe est correct : plus besoin de jeton de vérification.
+
+const DATA_KEY_BYTES = 32;
+/** Données associées liant l'enveloppe à son usage (séparation de domaine). */
+const KEYRING_AAD = new TextEncoder().encode('fiscapro-keyring-v2');
+
+/** Trousseau persisté : sel de dérivation + clé de données enveloppée. */
+export interface Keyring {
+  version: 2;
+  salt: string;              // base64
+  wrappedKey: EncryptedPayload;
+}
+
+/** Génère les octets bruts d'une nouvelle clé de données (à effacer après usage). */
+export function generateDataKeyBytes(): Uint8Array<ArrayBuffer> {
+  return crypto.getRandomValues(new Uint8Array(DATA_KEY_BYTES));
+}
+
+/** Importe des octets bruts comme clé AES-GCM NON extractible. */
+export async function importDataKey(raw: Uint8Array<ArrayBuffer>): Promise<CryptoKey> {
+  return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, [
+    'encrypt',
+    'decrypt',
+  ]);
+}
+
+/** Enveloppe les octets de la clé de données avec la clé dérivée du mot de passe. */
+export async function wrapDataKey(
+  wrappingKey: CryptoKey,
+  raw: Uint8Array<ArrayBuffer>,
+): Promise<EncryptedPayload> {
+  const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv, additionalData: KEYRING_AAD },
+    wrappingKey,
+    raw,
+  );
+  return { iv: bufToBase64(iv.buffer), ciphertext: bufToBase64(ciphertext) };
+}
+
+/**
+ * Désenveloppe la clé de données. Lève une erreur si le mot de passe (donc la
+ * clé d'enveloppe) est incorrect ou si l'enveloppe a été altérée.
+ */
+export async function unwrapDataKey(
+  wrappingKey: CryptoKey,
+  wrapped: EncryptedPayload,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const raw = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: new Uint8Array(base64ToBuf(wrapped.iv)), additionalData: KEYRING_AAD },
+    wrappingKey,
+    base64ToBuf(wrapped.ciphertext),
+  );
+  return new Uint8Array(raw);
+}
