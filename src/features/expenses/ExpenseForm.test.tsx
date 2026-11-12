@@ -25,7 +25,7 @@ describe('ExpenseForm', () => {
 
   it('enregistre une dépense avec le % déductible de la catégorie', async () => {
     render(<ExpenseForm />);
-    fireEvent.change(screen.getByLabelText('Montant'), { target: { value: '100,00' } });
+    fireEvent.change(screen.getByLabelText('Montant total (taxes comprises)'), { target: { value: '100,00' } });
     // Choisir « Repas et représentation » (50 %)
     fireEvent.change(screen.getByLabelText('Catégorie'), { target: { value: 'repas_representation' } });
     fireEvent.click(screen.getByText('Enregistrer la dépense'));
@@ -55,7 +55,7 @@ describe('ExpenseForm', () => {
 
   it('rejette un pourcentage hors bornes', async () => {
     render(<ExpenseForm />);
-    fireEvent.change(screen.getByLabelText('Montant'), { target: { value: '50,00' } });
+    fireEvent.change(screen.getByLabelText('Montant total (taxes comprises)'), { target: { value: '50,00' } });
     // S'assurer d'une catégorie non-véhicule (sinon le champ % est masqué).
     fireEvent.change(screen.getByLabelText('Catégorie'), { target: { value: 'fournitures_bureau' } });
     fireEvent.change(screen.getByLabelText('% déductible'), { target: { value: '150' } });
@@ -67,7 +67,7 @@ describe('ExpenseForm', () => {
   it('stocke les taxes manuelles seulement si inscrit et mode manuel', async () => {
     taxRegistered = true;
     render(<ExpenseForm />);
-    fireEvent.change(screen.getByLabelText('Montant'), { target: { value: '1000,00' } });
+    fireEvent.change(screen.getByLabelText('Montant total (taxes comprises)'), { target: { value: '1000,00' } });
     // Activer le mode manuel
     fireEvent.click(screen.getByLabelText('Ajuster les taxes manuellement'));
     fireEvent.change(screen.getByLabelText('TPS perçue/payée'), { target: { value: '50,00' } });

@@ -8,7 +8,7 @@ import { parseDollarsToCents } from '../../lib/format/parseMoney';
 import { centsToDollars } from '../../lib/format/money';
 import { loadFiscalConfig } from '../../core/tax/loadConfig';
 import { listExpenseCategories } from '../../core/tax/categories';
-import { computeSalesTax } from '../../core/tax/salesTax';
+import { extractSalesTaxFromTotal } from '../../core/tax/salesTax';
 import { ReceiptScanner } from './ReceiptScanner';
 import { ReceiptImageView } from './ReceiptImageView';
 import type { ParsedReceipt } from '../../lib/ocr/parseReceipt';
@@ -81,7 +81,8 @@ export function ExpenseForm({ editing, onDone, onCancel }: ExpenseFormProps) {
 
   // Taxes calculées automatiquement à partir du montant saisi (pour l'affichage).
   const amountCentsForTax = parseDollarsToCents(amount) ?? 0;
-  const autoTax = computeSalesTax(amountCentsForTax, config);
+  // Le montant saisi est le total de la facture : les taxes en sont extraites.
+  const autoTax = extractSalesTaxFromTotal(amountCentsForTax, config);
 
   // Pré-remplissage depuis l'OCR : ne remplit que les champs détectés.
   const handleExtracted = (parsed: ParsedReceipt) => {
@@ -176,7 +177,7 @@ export function ExpenseForm({ editing, onDone, onCancel }: ExpenseFormProps) {
 
       {!isEdit && <ReceiptScanner onExtracted={handleExtracted} onImage={handleImage} />}
 
-      <Field label="Montant" htmlFor="exp-amount" hint="En dollars, ex. 49,99">
+      <Field label="Montant total (taxes comprises)" htmlFor="exp-amount" hint="Le total payé sur la facture, ex. 114,98">
         <TextInput id="exp-amount" value={amount} onChange={setAmount} inputMode="decimal" placeholder="0,00" />
       </Field>
 

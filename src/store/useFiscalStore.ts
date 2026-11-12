@@ -345,10 +345,10 @@ export const useFiscalStore = create<FiscalState>((set, get) => ({
   },
 
   getSummary: () => {
-    const { incomes, expenses, trips, vehicle } = get();
+    const { incomes, expenses, trips, vehicle, taxRegistered } = get();
 
     const grossIncomeCents = incomes.reduce((sum, i) => sum + i.amountCents, 0);
-    const nonVehicleDeductible = totalDeductibleNonVehicle(expenses, config);
+    const nonVehicleDeductible = totalDeductibleNonVehicle(expenses, config, taxRegistered);
     const vehicleDeductibleCents = deductibleVehicleExpenses(vehicle, trips);
     const deductibleExpensesCents = nonVehicleDeductible + vehicleDeductibleCents;
 

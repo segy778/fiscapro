@@ -82,7 +82,7 @@ export function buildAnnualReport(
       deductibleCents: 0,
     };
     existing.totalCents += e.amountCents;
-    existing.deductibleCents += deductibleExpenseAmount(e);
+    existing.deductibleCents += deductibleExpenseAmount(e, config, taxRegistered);
     byCategory.set(e.category, existing);
   }
   const expensesByCategory = [...byCategory.values()].sort((a, b) => b.totalCents - a.totalCents);

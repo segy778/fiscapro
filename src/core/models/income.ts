@@ -15,6 +15,7 @@ export interface Income {
 export interface Expense {
   id: string;
   date: string;              // ISO 8601
+  /** Total payé, TAXES COMPRISES (montant de la facture). */
   amountCents: number;
   category: string;          // clé de config.expenseCategories
   /** % déductible 0..1, déduit de la catégorie mais surchargeable. */

@@ -15,14 +15,18 @@ import { StatCard } from '../../components/StatCard';
 import { InstallmentReminder } from '../reminders/InstallmentReminder';
 import { formatCents, formatKm } from '../../lib/format/money';
 import { buildMonthlySeries } from './monthlyData';
+import { loadFiscalConfig } from '../../core/tax/loadConfig';
+
+const config = loadFiscalConfig(2026);
 
 export function Dashboard() {
   const getSummary = useFiscalStore((s) => s.getSummary);
   const incomes = useFiscalStore((s) => s.incomes);
   const expenses = useFiscalStore((s) => s.expenses);
+  const taxRegistered = useFiscalStore((s) => s.taxRegistered);
 
   const summary = getSummary();
-  const monthly = buildMonthlySeries(incomes, expenses);
+  const monthly = buildMonthlySeries(incomes, expenses, config, taxRegistered);
 
   const { tax, km } = summary;
   const ratioPct = (km.businessRatio * 100).toFixed(0);

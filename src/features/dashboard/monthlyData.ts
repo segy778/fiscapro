@@ -2,6 +2,7 @@
 
 import type { Income, Expense } from '../../core/models/income';
 import { deductibleExpenseAmount } from '../../core/tax/expenseCalc';
+import type { FiscalConfig } from '../../core/tax/fiscalConfig';
 
 const MOIS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
 
@@ -11,7 +12,12 @@ export interface MonthlyPoint {
   depenses: number;
 }
 
-export function buildMonthlySeries(incomes: Income[], expenses: Expense[]): MonthlyPoint[] {
+export function buildMonthlySeries(
+  incomes: Income[],
+  expenses: Expense[],
+  config: FiscalConfig,
+  taxRegistered: boolean,
+): MonthlyPoint[] {
   const series: MonthlyPoint[] = MOIS.map((mois) => ({ mois, revenus: 0, depenses: 0 }));
   for (const inc of incomes) {
     const m = new Date(inc.date + 'T00:00:00').getMonth();
@@ -19,7 +25,7 @@ export function buildMonthlySeries(incomes: Income[], expenses: Expense[]): Mont
   }
   for (const exp of expenses) {
     const m = new Date(exp.date + 'T00:00:00').getMonth();
-    series[m]!.depenses += deductibleExpenseAmount(exp) / 100;
+    series[m]!.depenses += deductibleExpenseAmount(exp, config, taxRegistered) / 100;
   }
   return series;
 }

@@ -6,6 +6,8 @@
 //    RÉCUPÈRE celle payée sur ses dépenses (CTI/RTI), proportionnellement au
 //    % déductible de la dépense (ex. repas 50 % -> 50 % de la taxe récupérable).
 //  - Remise nette = perçue - récupérable, séparément pour TPS et TVQ.
+//  - Le montant d'une DÉPENSE est le TOTAL PAYÉ, taxes comprises (c'est ce que
+//    l'utilisateur lit sur sa facture). La taxe payée en est extraite.
 
 import type { FiscalConfig } from './fiscalConfig';
 import type { Income, Expense } from '../models/income';
@@ -29,6 +31,31 @@ export function computeSalesTax(amountCents: number, config: FiscalConfig): TaxA
 }
 
 /**
+ * Extrait la TPS et la TVQ d'un montant TAXES COMPRISES (en cents).
+ * Montant avant taxes = total / (1 + TPS + TVQ), puis chaque taxe sur ce montant.
+ */
+export function extractSalesTaxFromTotal(totalCents: number, config: FiscalConfig): TaxAmounts {
+  const total = totalCents > 0 ? totalCents : 0;
+  const { gstRate, qstRate } = config.salesTax;
+  const beforeTax = Math.round(total / (1 + gstRate + qstRate));
+  return {
+    gstCents: Math.round(beforeTax * gstRate),
+    qstCents: Math.round(beforeTax * qstRate),
+  };
+}
+
+/**
+ * Taxe payée sur une dépense : montants saisis s'ils existent (ex. facture
+ * sans taxe, assurance), sinon extraite du total taxes comprises.
+ */
+export function expenseTaxPaid(expense: Expense, config: FiscalConfig): TaxAmounts {
+  if (expense.gstCents !== undefined && expense.qstCents !== undefined) {
+    return { gstCents: expense.gstCents, qstCents: expense.qstCents };
+  }
+  return extractSalesTaxFromTotal(expense.amountCents, config);
+}
+
+/**
  * Taxe perçue sur un revenu : utilise les montants saisis s'ils existent,
  * sinon calcule depuis le montant. Ne compte que si gstQstCollected = true.
  */
@@ -43,14 +70,11 @@ export function incomeTaxCollected(income: Income, config: FiscalConfig): TaxAmo
 }
 
 /**
- * Taxe récupérable (CTI/RTI) sur une dépense : la taxe payée, calculée ou
- * saisie, multipliée par le % déductible de la dépense.
+ * Taxe récupérable (CTI/RTI) sur une dépense : la taxe payée (extraite du
+ * total ou saisie), multipliée par le % déductible de la dépense.
  */
 export function expenseTaxRecoverable(expense: Expense, config: FiscalConfig): TaxAmounts {
-  const paid: TaxAmounts =
-    expense.gstCents !== undefined && expense.qstCents !== undefined
-      ? { gstCents: expense.gstCents, qstCents: expense.qstCents }
-      : computeSalesTax(expense.amountCents, config);
+  const paid = expenseTaxPaid(expense, config);
   return {
     gstCents: Math.round(paid.gstCents * expense.deductiblePercent),
     qstCents: Math.round(paid.qstCents * expense.deductiblePercent),
