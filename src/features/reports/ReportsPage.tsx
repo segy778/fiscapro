@@ -8,8 +8,15 @@ import { formatCents, formatKm, formatDateShort, formatDate } from '../../lib/fo
 import { reportToCsv, downloadTextFile } from '../../lib/export/csv';
 import type { ReceiptEntry } from '../../lib/export/pdf';
 import { buildInstallmentsIcs } from '../../core/tax/reminders';
+import { ExportWarning } from './ExportWarning';
 
 const config = loadFiscalConfig(2026);
+
+type ExportKind = 'csv' | 'pdf' | 'pdf-receipts' | 'ics';
+
+// « Ne plus demander » : mémorisé en mémoire seulement, jusqu'à la fermeture
+// ou au rechargement de l'app (jamais stocké).
+let exportWarningDismissed = false;
 
 function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -31,8 +38,11 @@ export function ReportsPage() {
   const vehicle = useFiscalStore((s) => s.vehicle);
   const taxRegistered = useFiscalStore((s) => s.taxRegistered);
   const getReceiptImage = useFiscalStore((s) => s.getReceiptImage);
+  const encryptionEnabled = useFiscalStore((s) => s.encryptionEnabled);
 
   const [pdfWorking, setPdfWorking] = useState(false);
+  // Export en attente de confirmation (avertissement « fichier non chiffré »).
+  const [pendingExport, setPendingExport] = useState<ExportKind | null>(null);
 
   const report = buildAnnualReport(config, incomes, expenses, trips, vehicle, taxRegistered);
 
@@ -78,6 +88,26 @@ export function ReportsPage() {
     }
   };
 
+  const runExport = (kind: ExportKind) => {
+    if (kind === 'csv') handleCsv();
+    else if (kind === 'ics') handleIcs();
+    else void handlePdf(kind === 'pdf-receipts');
+  };
+
+  // Chaque export passe par ici : avertissement d'abord, sauf si l'utilisateur
+  // l'a déjà écarté pendant cette session.
+  const requestExport = (kind: ExportKind) => {
+    if (exportWarningDismissed) runExport(kind);
+    else setPendingExport(kind);
+  };
+
+  const exportFileName = (kind: ExportKind): string =>
+    kind === 'csv'
+      ? `FiscaPro-QC-${report.year}.csv`
+      : kind === 'ics'
+        ? `Acomptes-${report.year}.ics`
+        : `FiscaPro-QC-${report.year}.pdf`;
+
   const { tax } = report;
 
   return (
@@ -91,13 +121,13 @@ export function ReportsPage() {
         </div>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={handleCsv}
+            onClick={() => requestExport('csv')}
             className="rounded-lg border border-ardoise-200 px-4 py-2 text-sm font-medium text-ardoise-700 hover:bg-ardoise-100"
           >
             Exporter CSV
           </button>
           <button
-            onClick={() => void handlePdf(false)}
+            onClick={() => requestExport('pdf')}
             disabled={pdfWorking}
             className="rounded-lg bg-sapin-700 px-4 py-2 text-sm font-medium text-white hover:bg-sapin-800 disabled:opacity-50"
           >
@@ -105,7 +135,7 @@ export function ReportsPage() {
           </button>
           {report.receiptsCount > 0 && (
             <button
-              onClick={() => void handlePdf(true)}
+              onClick={() => requestExport('pdf-receipts')}
               disabled={pdfWorking}
               className="rounded-lg border border-sapin-700 px-4 py-2 text-sm font-medium text-sapin-700 hover:bg-sapin-50 disabled:opacity-50"
             >
@@ -114,7 +144,7 @@ export function ReportsPage() {
           )}
           {report.installments.anyRequired && (
             <button
-              onClick={handleIcs}
+              onClick={() => requestExport('ics')}
               className="rounded-lg border border-ardoise-200 px-4 py-2 text-sm font-medium text-ardoise-700 hover:bg-ardoise-100"
             >
               Ajouter les acomptes au calendrier
@@ -122,6 +152,20 @@ export function ReportsPage() {
           )}
         </div>
       </header>
+
+      {pendingExport && (
+        <ExportWarning
+          fileName={exportFileName(pendingExport)}
+          encryptionEnabled={encryptionEnabled}
+          onConfirm={(dontAskAgain) => {
+            if (dontAskAgain) exportWarningDismissed = true;
+            const kind = pendingExport;
+            setPendingExport(null);
+            runExport(kind);
+          }}
+          onCancel={() => setPendingExport(null)}
+        />
+      )}
 
       <div className="space-y-5">
         {/* Revenus */}

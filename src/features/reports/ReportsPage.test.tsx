@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ReportsPage } from './ReportsPage';
 import type { Income, Expense } from '../../core/models/income';
 
@@ -9,7 +9,14 @@ const state = {
   trips: [] as unknown[],
   vehicle: { id: 'v1', name: 'Véhicule', expenses: [] },
   taxRegistered: false,
+  encryptionEnabled: false,
 };
+
+const downloadTextFile = vi.fn();
+vi.mock('../../lib/export/csv', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/export/csv')>()),
+  downloadTextFile: (...args: unknown[]) => downloadTextFile(...args),
+}));
 
 vi.mock('../../store/useFiscalStore', () => ({
   useFiscalStore: (selector: (s: unknown) => unknown) =>
@@ -19,6 +26,7 @@ vi.mock('../../store/useFiscalStore', () => ({
       trips: state.trips,
       vehicle: state.vehicle,
       taxRegistered: state.taxRegistered,
+      encryptionEnabled: state.encryptionEnabled,
       getReceiptImage: vi.fn(),
     }),
 }));
@@ -29,6 +37,8 @@ describe('ReportsPage', () => {
     state.expenses = [];
     state.trips = [];
     state.taxRegistered = false;
+    state.encryptionEnabled = false;
+    downloadTextFile.mockClear();
   });
 
   it('affiche les boutons d\'export de base', () => {
@@ -70,5 +80,43 @@ describe('ReportsPage', () => {
     state.incomes = [{ id: 'i1', date: '2026-02-01', amountCents: 9_000_000 }]; // 90 000 $, acomptes requis
     render(<ReportsPage />);
     expect(screen.getByText(/Ajouter les acomptes au calendrier/)).toBeInTheDocument();
+  });
+
+  // L'ordre compte : « ne plus demander » est mémorisé pour toute la session
+  // (module), donc ce test-là vient en dernier.
+  it('avertit avant un export : rien n\'est téléchargé sans confirmation', () => {
+    render(<ReportsPage />);
+    fireEvent.click(screen.getByText('Exporter CSV'));
+    expect(screen.getByText('Ce fichier ne sera pas chiffré')).toBeInTheDocument();
+    expect(screen.getByText('FiscaPro-QC-2026.csv')).toBeInTheDocument();
+    expect(downloadTextFile).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText('Annuler'));
+    expect(screen.queryByText('Ce fichier ne sera pas chiffré')).not.toBeInTheDocument();
+    expect(downloadTextFile).not.toHaveBeenCalled();
+  });
+
+  it('précise que le fichier sort du chiffrement quand celui-ci est activé', () => {
+    state.encryptionEnabled = true;
+    render(<ReportsPage />);
+    fireEvent.click(screen.getByText('Exporter CSV'));
+    expect(screen.getByText(/chiffrées dans l.app, mais pas les fichiers exportés/)).toBeInTheDocument();
+  });
+
+  it('télécharge après confirmation', () => {
+    render(<ReportsPage />);
+    fireEvent.click(screen.getByText('Exporter CSV'));
+    fireEvent.click(screen.getByText('Télécharger quand même'));
+    expect(downloadTextFile).toHaveBeenCalledOnce();
+    expect(downloadTextFile.mock.calls[0]?.[0]).toBe('FiscaPro-QC-2026.csv');
+  });
+
+  it('« Ne plus me le demander » : les exports suivants ne redemandent plus', () => {
+    render(<ReportsPage />);
+    fireEvent.click(screen.getByText('Exporter CSV'));
+    fireEvent.click(screen.getByLabelText(/Ne plus me le demander/));
+    fireEvent.click(screen.getByText('Télécharger quand même'));
+    fireEvent.click(screen.getByText('Exporter CSV'));
+    expect(screen.queryByText('Ce fichier ne sera pas chiffré')).not.toBeInTheDocument();
+    expect(downloadTextFile).toHaveBeenCalledTimes(2);
   });
 });
