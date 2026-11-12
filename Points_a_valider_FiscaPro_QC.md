@@ -6,6 +6,8 @@
 
 **Posture actuelle de l'application.** Toutes les estimations affichées portent la mention « estimation à valider ». Cette posture doit être maintenue tant que les validations ci-dessous ne sont pas faites.
 
+**Dossiers détaillés (12 novembre 2026).** Ce document résume les deux revues. Chacune a maintenant son dossier détaillé, à remettre à l'expert concerné : le *Dossier de validation fiscale (CPA)*, avec des cas de référence chiffrés étape par étape, et le *Dossier d'audit de sécurité*, avec les constats préliminaires de l'équipe. En cas d'écart, les dossiers détaillés font foi.
+
 ---
 
 ## Partie 1 — Pour le ou la fiscaliste (CPA)
@@ -27,13 +29,15 @@ Les paramètres suivants ont été vérifiés contre Revenu Québec, l'ARC et Re
 - TPS 5 %, TVQ 9,975 %.
 - Seuils d'acomptes : fédéral 3 000 $, Québec 1 800 $.
 
+> **À confirmer en priorité** (relecture du 12 novembre 2026) : le taux RRQ de base (5,3 % par part), le taux RQAP de travailleur autonome (0,764 %) et le seuil d'acomptes fédéral, qui serait de 1 800 $ pour un résident du Québec. La cotisation au Fonds des services de santé n'est pas calculée. Voir le dossier CPA.
+
 **Important :** la vérification faite par l'équipe ne portait que sur ces *paramètres*. Elle ne vaut pas validation de la *logique* de calcul ni de la *méthode*. C'est l'objet des questions ci-dessous.
 
 ### 1.3 Questions sur la méthode de calcul
 
 1. **Application des crédits non remboursables.** Les montants personnels de base (fédéral et Québec) sont convertis en crédits au taux du palier le plus bas (14 %) puis soustraits de l'impôt. La part « employé » des cotisations RRQ/RQAP est aussi traitée en crédit au fédéral. **La méthode et l'ordre d'application des crédits sont-ils conformes aux guides T1 et TP-1 ?**
 
-2. **Séparation crédit / déduction des cotisations sociales.** Pour le travailleur autonome, la cotisation RRQ/RQAP est scindée : une part « employeur » est déductible du revenu (ligne 21200 et équivalent), une part « employé » donne un crédit. L'application utilise un facteur de partage de 0,5. **Ce traitement et ce partage sont-ils corrects, y compris pour les cotisations supplémentaires (bonifiées) du RRQ ?**
+2. **Séparation crédit / déduction des cotisations sociales.** Pour le travailleur autonome, la cotisation RRQ/RQAP est scindée : une part « employeur » est déductible du revenu (lignes 22200 et 22215 au fédéral, ligne 248 au Québec ; une version antérieure de ce document citait par erreur la ligne 21200), une part « employé » donne un crédit. L'application utilise un facteur de partage de 0,5. **Ce traitement et ce partage sont-ils corrects, y compris pour les cotisations supplémentaires (bonifiées) du RRQ ?**
 
 3. **Abattement du Québec.** Il est appliqué comme une réduction de 16,5 % de l'impôt fédéral de base. **L'assiette de l'abattement (impôt « de base » avant ou après quels crédits) est-elle la bonne ?**
 
@@ -71,10 +75,13 @@ Application *local-first* : toutes les données restent sur l'appareil de l'util
 
 L'ensemble utilise l'API Web Crypto native du navigateur, sans dépendance externe.
 
-- **Dérivation de clé** : PBKDF2, SHA-256, **600 000 itérations**, sel aléatoire de 16 octets.
-- **Chiffrement** : AES-GCM 256 bits, IV aléatoire de 12 octets par enregistrement. Clé marquée non extractible.
-- **Vérification du mot de passe** : un jeton connu est chiffré ; le déchiffrement réussi atteste du bon mot de passe. Le mot de passe n'est jamais stocké.
-- **Clé en mémoire** : la clé dérivée vit en mémoire pour la durée de la session, jamais persistée. Perdue au rechargement de page (re-déverrouillage requis).
+- **Clé de données** : 256 bits aléatoires, utilisée pour chiffrer toutes les données (AES-GCM 256 bits, IV aléatoire de 12 octets par enregistrement). Importée comme clé non extractible.
+- **Enveloppe de clé** : la clé de données est chiffrée par une clé dérivée du mot de passe (PBKDF2, SHA-256, **600 000 itérations**, sel aléatoire de 16 octets). Le sel et la clé enveloppée forment un **trousseau**, stocké en une seule métadonnée.
+- **Vérification du mot de passe** : le déchiffrement authentifié du trousseau échoue si le mot de passe est faux. Le mot de passe n'est jamais stocké.
+- **Changement de mot de passe** : seul le trousseau est réécrit, en une seule écriture ; les données ne sont pas touchées.
+- **Deux bases distinctes** : les données en clair et les données chiffrées vivent dans deux bases IndexedDB séparées. L'activation construit la base chiffrée, écrit un drapeau en dernier, puis supprime la base en clair en entier (et inversement à la désactivation). Une opération interrompue est annulée ou terminée au redémarrage.
+- **Clé en mémoire** : la clé de données vit en mémoire pour la durée de la session, jamais persistée. Perdue au rechargement de page (re-déverrouillage requis). Verrouillée, l'app refuse tout accès aux données.
+- **Format hérité** : les bases chiffrées par une version antérieure (clé dérivée directement du mot de passe) sont migrées au premier déverrouillage.
 
 ### 2.3 Questions pour l'audit
 
@@ -84,11 +91,11 @@ L'ensemble utilise l'API Web Crypto native du navigateur, sans dépendance exter
 
 3. **Gestion de la clé en mémoire.** La clé `CryptoKey` est conservée dans une instance de session en mémoire. **Existe-t-il des fenêtres où elle pourrait fuiter** (dumps mémoire, extensions de navigateur, devtools) ? Le caractère non extractible suffit-il ?
 
-4. **Fenêtres d'exposition pendant les transitions.** Documenté : lors de l'**activation**, de la **désactivation** et du **changement de mot de passe**, les données transitent. Le changement de mot de passe a été conçu pour rechiffrer **en mémoire** (jamais en clair sur disque) ; mais l'activation initiale lit les données existantes en clair (elles l'étaient déjà) avant de les chiffrer, et la désactivation les réécrit volontairement en clair. **Ces fenêtres sont-elles correctement bornées ? Le changement de mot de passe est-il réellement exempt d'écriture en clair ?**
+4. **Fenêtres d'exposition pendant les transitions.** Le changement de mot de passe ne réécrit plus que le trousseau. L'activation copie les données dans une base chiffrée neuve puis supprime la base en clair ; des traces des données saisies avant l'activation peuvent néanmoins subsister sur le disque. La désactivation réécrit volontairement les données en clair dans une base neuve. **Ces fenêtres sont-elles correctement bornées ? La suppression de la base en clair est-elle suffisante ?**
 
 5. **Verrouillage automatique.** L'app se verrouille après 15 minutes d'inactivité (avertissement à 14 min). **Ce délai et ce mécanisme sont-ils appropriés ? La clé est-elle correctement effacée au verrouillage ?**
 
-6. **Métadonnées non chiffrées.** Le sel, le jeton de vérification et les drapeaux de configuration sont stockés **en clair** (nécessaires avant déverrouillage). **Cette exposition est-elle acceptable ?**
+6. **Métadonnées non chiffrées.** Le trousseau (sel + clé de données enveloppée) et les drapeaux de configuration sont stockés **en clair** (nécessaires avant déverrouillage). **Cette exposition est-elle acceptable ?**
 
 7. **Surface d'attaque navigateur.** IndexedDB, le contexte d'exécution et les éventuelles extensions. **Quelles protections supplémentaires recommander (CSP, isolation, etc.) ?**
 
@@ -109,7 +116,9 @@ Ces limites sont **documentées dans le code** et assumées ; elles sont listée
 | Fiscal | Acomptes : année antérieure non prise en compte | Estimation prudente sur l'année courante |
 | Fiscal | TVQ sur assurance non récupérable | Ajustement manuel par l'utilisateur |
 | Fiscal | Pas de revenus mixtes, conjoint, REER, gains en capital | Hors périmètre |
-| Sécurité | Chiffrement non audité | Le présent document |
+| Sécurité | Chiffrement non audité | Le présent document et le dossier d'audit |
+| Sécurité | Traces possibles sur le disque des données saisies avant l'activation | Base en clair supprimée à l'activation ; l'app conseille d'activer le chiffrement dès le début |
+| Sécurité | Mot de passe de 8 caractères minimum, sans contrôle de robustesse | À renforcer (constat 3 du dossier d'audit) |
 | Sécurité | Pas de protection contre appareil compromis en cours d'usage | Hors modèle de menace |
 | Sécurité | Perte du mot de passe = perte définitive | Choix assumé, signalé à l'utilisateur |
 | Technique | Délai de verrouillage non configurable (15 min fixe) | Valeur unique |
@@ -118,7 +127,7 @@ Ces limites sont **documentées dans le code** et assumées ; elles sont listée
 
 ## Partie 4 — État du développement (pour contexte)
 
-- Build, lint et **143 tests automatisés** au vert.
+- Build, lint et **151 tests automatisés** au vert.
 - Couverture à trois niveaux : logique pure (moteur fiscal, taxes, acomptes, rappels, cryptographie), stockage, et composants d'interface.
 - Périmètre fonctionnel du cahier des charges (PRD) couvert intégralement, version 2 comprise.
 - Pile : application web (React + TypeScript strict), stockage local IndexedDB, OCR local pour les factures (aucune dépendance externe à l'exécution).
