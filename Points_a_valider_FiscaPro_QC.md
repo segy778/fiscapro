@@ -78,6 +78,7 @@ L'ensemble utilise l'API Web Crypto native du navigateur, sans dépendance exter
 - **Clé de données** : 256 bits aléatoires, utilisée pour chiffrer toutes les données (AES-GCM 256 bits, IV aléatoire de 12 octets par enregistrement). Importée comme clé non extractible.
 - **Enveloppe de clé** : la clé de données est chiffrée par une clé dérivée du mot de passe (PBKDF2, SHA-256, **600 000 itérations**, sel aléatoire de 16 octets). Le sel et la clé enveloppée forment un **trousseau**, stocké en une seule métadonnée.
 - **Vérification du mot de passe** : le déchiffrement authentifié du trousseau échoue si le mot de passe est faux. Le mot de passe n'est jamais stocké.
+- **Politique de mot de passe** : 12 caractères minimum ; sous 16 caractères, au moins 3 types de caractères ; refus des mots de passe courants, des répétitions et des suites, avec une jauge de robustesse. Un mot de passe existant trop faible reste utilisable, mais l'app invite à le changer après le déverrouillage.
 - **Changement de mot de passe** : seul le trousseau est réécrit, en une seule écriture ; les données ne sont pas touchées.
 - **Deux bases distinctes** : les données en clair et les données chiffrées vivent dans deux bases IndexedDB séparées. L'activation construit la base chiffrée, écrit un drapeau en dernier, puis supprime la base en clair en entier (et inversement à la désactivation). Une opération interrompue est annulée ou terminée au redémarrage.
 - **Clé en mémoire** : la clé de données vit en mémoire pour la durée de la session, jamais persistée. Perdue au rechargement de page (re-déverrouillage requis). Verrouillée, l'app refuse tout accès aux données.
@@ -118,7 +119,7 @@ Ces limites sont **documentées dans le code** et assumées ; elles sont listée
 | Fiscal | Pas de revenus mixtes, conjoint, REER, gains en capital | Hors périmètre |
 | Sécurité | Chiffrement non audité | Le présent document et le dossier d'audit |
 | Sécurité | Traces possibles sur le disque des données saisies avant l'activation | Base en clair supprimée à l'activation ; l'app conseille d'activer le chiffrement dès le début |
-| Sécurité | Mot de passe de 8 caractères minimum, sans contrôle de robustesse | À renforcer (constat 3 du dossier d'audit) |
+| Sécurité | Liste de mots de passe courants limitée (environ 45 mots) | Politique de mot de passe en place (constat 3 corrigé) ; une liste plus complète (ex. zxcvbn) est à évaluer |
 | Sécurité | Pas de protection contre appareil compromis en cours d'usage | Hors modèle de menace |
 | Sécurité | Perte du mot de passe = perte définitive | Choix assumé, signalé à l'utilisateur |
 | Technique | Délai de verrouillage non configurable (15 min fixe) | Valeur unique |
@@ -127,7 +128,7 @@ Ces limites sont **documentées dans le code** et assumées ; elles sont listée
 
 ## Partie 4 — État du développement (pour contexte)
 
-- Build, lint et **151 tests automatisés** au vert.
+- Build, lint et **183 tests automatisés** au vert.
 - Couverture à trois niveaux : logique pure (moteur fiscal, taxes, acomptes, rappels, cryptographie), stockage, et composants d'interface.
 - Périmètre fonctionnel du cahier des charges (PRD) couvert intégralement, version 2 comprise.
 - Pile : application web (React + TypeScript strict), stockage local IndexedDB, OCR local pour les factures (aucune dépendance externe à l'exécution).
