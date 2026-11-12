@@ -3,6 +3,11 @@
 import { useState } from 'react';
 import { useFiscalStore } from '../../store/useFiscalStore';
 import { Button, Checkbox, Field, TextInput } from '../../components/FormField';
+import { PasswordStrength } from '../../components/PasswordStrength';
+import { checkPassword } from '../../lib/crypto/passwordPolicy';
+
+const PASSWORD_HINT = '12 caractères minimum. Idéal : une phrase de passe, ex. « trois chats mangent des poires ».';
+const POLICY_ERROR = 'Ce mot de passe est trop faible. Corrigez les points indiqués sous le champ.';
 
 export function SettingsPage() {
   const resetAll = useFiscalStore((s) => s.resetAll);
@@ -16,6 +21,7 @@ export function SettingsPage() {
   const disableEncryption = useFiscalStore((s) => s.disableEncryption);
   const changePassword = useFiscalStore((s) => s.changePassword);
   const lockApp = useFiscalStore((s) => s.lockApp);
+  const weakPassword = useFiscalStore((s) => s.weakPassword);
 
   const [pw1, setPw1] = useState('');
   const [pw2, setPw2] = useState('');
@@ -37,6 +43,9 @@ export function SettingsPage() {
   const [changeMessage, setChangeMessage] = useState<string | null>(null);
   const [changeWorking, setChangeWorking] = useState(false);
 
+  const enableCheck = checkPassword(pw1);
+  const changeCheck = checkPassword(newPw1);
+
   const resetChangeForm = () => {
     setChanging(false);
     setOldPw('');
@@ -46,8 +55,8 @@ export function SettingsPage() {
   };
 
   const handleChangePassword = async () => {
-    if (newPw1.length < 8) {
-      setChangeError('Le nouveau mot de passe doit comporter au moins 8 caractères.');
+    if (!changeCheck.acceptable) {
+      setChangeError(POLICY_ERROR);
       return;
     }
     if (newPw1 !== newPw2) {
@@ -68,8 +77,8 @@ export function SettingsPage() {
   };
 
   const handleEnableEncryption = async () => {
-    if (pw1.length < 8) {
-      setEncError('Le mot de passe doit comporter au moins 8 caractères.');
+    if (!enableCheck.acceptable) {
+      setEncError(POLICY_ERROR);
       return;
     }
     if (pw1 !== pw2) {
@@ -127,6 +136,13 @@ export function SettingsPage() {
             <p className="mt-2 text-sm text-sapin-700">
               Le chiffrement est activé. Vos données sont protégées par votre mot de passe.
             </p>
+            {weakPassword && (
+              <p className="mt-3 rounded-lg border border-ambre-500/30 bg-ambre-50 p-3 text-sm text-ambre-700">
+                <span className="font-semibold">Mot de passe faible :</span> il ne respecte pas
+                les exigences actuelles et pourrait être deviné par quelqu'un qui copie vos
+                données. Changez-le ci-dessous.
+              </p>
+            )}
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 onClick={lockApp}
@@ -162,11 +178,12 @@ export function SettingsPage() {
                 <Field label="Mot de passe actuel" htmlFor="chg-old">
                   <TextInput id="chg-old" value={oldPw} onChange={setOldPw} type="password" placeholder="Actuel" />
                 </Field>
-                <Field label="Nouveau mot de passe" htmlFor="chg-new1" hint="Au moins 8 caractères">
-                  <TextInput id="chg-new1" value={newPw1} onChange={setNewPw1} type="password" placeholder="Nouveau" />
+                <Field label="Nouveau mot de passe" htmlFor="chg-new1" hint={PASSWORD_HINT}>
+                  <TextInput id="chg-new1" value={newPw1} onChange={(v) => { setNewPw1(v); setChangeError(null); }} type="password" placeholder="Nouveau" />
                 </Field>
+                <PasswordStrength check={changeCheck} empty={newPw1.length === 0} />
                 <Field label="Confirmer le nouveau" htmlFor="chg-new2">
-                  <TextInput id="chg-new2" value={newPw2} onChange={setNewPw2} type="password" placeholder="Confirmer" />
+                  <TextInput id="chg-new2" value={newPw2} onChange={(v) => { setNewPw2(v); setChangeError(null); }} type="password" placeholder="Confirmer" />
                 </Field>
                 {changeError && <p className="mb-3 text-sm text-ambre-700">{changeError}</p>}
                 <div className="flex gap-2">
@@ -235,11 +252,12 @@ export function SettingsPage() {
               </p>
             </div>
             <div className="mt-4 max-w-sm">
-              <Field label="Mot de passe" htmlFor="enc-pw1" hint="Au moins 8 caractères">
-                <TextInput id="enc-pw1" value={pw1} onChange={setPw1} type="password" placeholder="Mot de passe" />
+              <Field label="Mot de passe" htmlFor="enc-pw1" hint={PASSWORD_HINT}>
+                <TextInput id="enc-pw1" value={pw1} onChange={(v) => { setPw1(v); setEncError(null); }} type="password" placeholder="Mot de passe" />
               </Field>
+              <PasswordStrength check={enableCheck} empty={pw1.length === 0} />
               <Field label="Confirmer le mot de passe" htmlFor="enc-pw2">
-                <TextInput id="enc-pw2" value={pw2} onChange={setPw2} type="password" placeholder="Confirmer" />
+                <TextInput id="enc-pw2" value={pw2} onChange={(v) => { setPw2(v); setEncError(null); }} type="password" placeholder="Confirmer" />
               </Field>
               {encError && <p className="mb-3 text-sm text-ambre-700">{encError}</p>}
               <Button onClick={handleEnableEncryption} disabled={encWorking}>

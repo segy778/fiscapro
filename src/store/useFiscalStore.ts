@@ -16,6 +16,7 @@ import {
   type VehicleKmSummary,
 } from '../core/tax/vehicleCalc';
 import { storage } from '../lib/storage';
+import { checkPassword } from '../lib/crypto/passwordPolicy';
 import { compressImage } from '../lib/format/image';
 import {
   isEncryptionEnabled,
@@ -61,6 +62,8 @@ interface FiscalState {
   encryptionEnabled: boolean;
   /** true si le chiffrement est activé mais la session pas encore déverrouillée. */
   needsUnlock: boolean;
+  /** Le mot de passe utilisé au déverrouillage est sous les exigences (mémoire seulement). */
+  weakPassword: boolean;
   // État de chargement
   loaded: boolean;
 
@@ -108,6 +111,7 @@ export const useFiscalStore = create<FiscalState>((set, get) => ({
   taxRegistered: false,
   encryptionEnabled: false,
   needsUnlock: false,
+  weakPassword: false,
   loaded: false,
 
   initialize: async () => {
@@ -199,6 +203,7 @@ export const useFiscalStore = create<FiscalState>((set, get) => ({
         expenses: data.expenses,
         trips: data.trips,
         vehicle: data.vehicles[0] ?? EMPTY_VEHICLE,
+        weakPassword: false,
       });
     }
     return ok;
@@ -217,6 +222,8 @@ export const useFiscalStore = create<FiscalState>((set, get) => ({
       taxRegistered: (await storage.getMeta('taxRegistered')) === '1',
       encryptionEnabled: true,
       needsUnlock: false,
+      // Évalué en mémoire seulement, jamais stocké.
+      weakPassword: !checkPassword(password).acceptable,
       loaded: true,
     });
     return true;
