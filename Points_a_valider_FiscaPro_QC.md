@@ -84,6 +84,11 @@ L'ensemble utilise l'API Web Crypto native du navigateur, sans dépendance exter
 - **Clé en mémoire** : la clé de données vit en mémoire pour la durée de la session, jamais persistée. Perdue au rechargement de page (re-déverrouillage requis). Verrouillée, l'app refuse tout accès aux données.
 - **Format hérité** : les bases chiffrées par une version antérieure (clé dérivée directement du mot de passe) sont migrées au premier déverrouillage.
 
+### 2.2 bis Déploiement et dépendances
+
+- **En-têtes de sécurité** (`vercel.json`) : politique CSP stricte, sans `'unsafe-inline'` ni `'unsafe-eval'`. Tout vient du même domaine ; seules exceptions, `blob:` pour le worker de l'OCR et `'wasm-unsafe-eval'` pour son module WebAssembly. `connect-src 'self'` empêche l'envoi de données vers un autre site. S'y ajoutent HSTS, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, `Permissions-Policy`, COOP et CORP. Vérifié localement dans Chromium (aucune violation ; script injecté, script externe, envoi externe et `eval` bloqués) ; à confirmer sur le déploiement Vercel.
+- **Dépendances** : jspdf 4.2.1, dompurify 3.4.17 et react-router-dom 7.18.5 corrigent les vulnérabilités connues. `npm audit --omit=dev` : 0 vulnérabilité. Restent 13 vulnérabilités dans les outils de développement (Vite, Vitest, ESLint), non livrés aux utilisateurs.
+
 ### 2.3 Questions pour l'audit
 
 1. **Paramètres PBKDF2.** 600 000 itérations SHA-256 : adéquat aujourd'hui pour ce contexte navigateur ? Faut-il prévoir une augmentation dans le temps, ou migrer vers Argon2 (via WebAssembly) ?
@@ -98,7 +103,7 @@ L'ensemble utilise l'API Web Crypto native du navigateur, sans dépendance exter
 
 6. **Métadonnées non chiffrées.** Le trousseau (sel + clé de données enveloppée) et les drapeaux de configuration sont stockés **en clair** (nécessaires avant déverrouillage). **Cette exposition est-elle acceptable ?**
 
-7. **Surface d'attaque navigateur.** IndexedDB, le contexte d'exécution et les éventuelles extensions. **Quelles protections supplémentaires recommander (CSP, isolation, etc.) ?**
+7. **Surface d'attaque navigateur.** IndexedDB, le contexte d'exécution et les éventuelles extensions. Une CSP stricte et les en-têtes de la section 2.2 bis sont en place. **Sont-ils adaptés ? Quelles protections supplémentaires recommander (isolation, app installée, etc.) ?**
 
 8. **Récupération impossible par conception.** L'oubli du mot de passe entraîne la **perte définitive et irrécupérable** des données (aucune porte dérobée, aucune récupération). C'est un choix assumé et clairement signalé à l'utilisateur. **Ce compromis est-il bien implémenté (pas de fuite qui contournerait cette propriété) et bien communiqué ?**
 
@@ -121,6 +126,8 @@ Ces limites sont **documentées dans le code** et assumées ; elles sont listée
 | Sécurité | Traces possibles sur le disque des données saisies avant l'activation | Base en clair supprimée à l'activation ; l'app conseille d'activer le chiffrement dès le début |
 | Sécurité | Liste de mots de passe courants limitée (environ 45 mots) | Politique de mot de passe en place (constat 3 corrigé) ; une liste plus complète (ex. zxcvbn) est à évaluer |
 | Sécurité | Pas de protection contre appareil compromis en cours d'usage | Hors modèle de menace |
+| Sécurité | Code rechargé depuis l'hébergeur à chaque visite : une version piégée servie par Vercel reste possible | Atténué par la CSP ; app installée (service worker) avec mises à jour contrôlées à évaluer |
+| Technique | Vulnérabilités restantes dans les outils de développement (Vite, Vitest, ESLint) | Non livrés aux utilisateurs ; mise à jour majeure à planifier |
 | Sécurité | Perte du mot de passe = perte définitive | Choix assumé, signalé à l'utilisateur |
 | Technique | Délai de verrouillage non configurable (15 min fixe) | Valeur unique |
 
