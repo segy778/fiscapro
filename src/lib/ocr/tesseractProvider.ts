@@ -6,7 +6,9 @@
 // sans dépendance externe à l'exécution, on peut les servir avec l'app
 // (voir options workerPath/corePath/langPath ci-dessous).
 
-import Tesseract from 'tesseract.js';
+// Import de type seulement : la bibliothèque est chargée à la demande
+// (premier scan de facture) pour ne pas alourdir le chargement initial.
+import type Tesseract from 'tesseract.js';
 import type { OcrProvider, OcrResult, OcrProgress } from './OcrProvider';
 
 export interface TesseractOptions {
@@ -44,7 +46,8 @@ export class TesseractProvider implements OcrProvider {
     if (this.options.corePath) workerOptions.corePath = this.options.corePath;
     if (this.options.langPath) workerOptions.langPath = this.options.langPath;
 
-    this.worker = await Tesseract.createWorker(lang, 1, workerOptions);
+    const { createWorker } = await import('tesseract.js');
+    this.worker = await createWorker(lang, 1, workerOptions);
     return this.worker;
   }
 

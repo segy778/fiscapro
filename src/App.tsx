@@ -1,16 +1,25 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { NavBar } from './components/NavBar';
-import { Dashboard } from './features/dashboard/Dashboard';
-import { IncomePage } from './features/income/IncomePage';
-import { ExpensePage } from './features/expenses/ExpensePage';
-import { VehiclePage } from './features/vehicle/VehiclePage';
-import { ReportsPage } from './features/reports/ReportsPage';
-import { SettingsPage } from './features/settings/SettingsPage';
 import { UnlockScreen } from './features/security/UnlockScreen';
 import { AutoLockWarning } from './features/security/AutoLockWarning';
 import { useFiscalStore } from './store/useFiscalStore';
 import { useAutoLock } from './lib/crypto/useAutoLock';
+
+// Pages chargées à la demande : chaque section devient un fichier séparé,
+// téléchargé seulement quand l'utilisateur y navigue.
+const Dashboard = lazy(() => import('./features/dashboard/Dashboard').then((m) => ({ default: m.Dashboard })));
+const IncomePage = lazy(() => import('./features/income/IncomePage').then((m) => ({ default: m.IncomePage })));
+const ExpensePage = lazy(() => import('./features/expenses/ExpensePage').then((m) => ({ default: m.ExpensePage })));
+const VehiclePage = lazy(() => import('./features/vehicle/VehiclePage').then((m) => ({ default: m.VehiclePage })));
+const ReportsPage = lazy(() => import('./features/reports/ReportsPage').then((m) => ({ default: m.ReportsPage })));
+const SettingsPage = lazy(() => import('./features/settings/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+
+const pageFallback = (
+  <div className="mx-auto max-w-5xl px-5 py-8">
+    <p className="text-ardoise-500">Chargement…</p>
+  </div>
+);
 
 function App() {
   const initialize = useFiscalStore((s) => s.initialize);
@@ -39,15 +48,17 @@ function App() {
             <p className="text-ardoise-500">Chargement de vos données…</p>
           </div>
         ) : (
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/revenus" element={<IncomePage />} />
-            <Route path="/depenses" element={<ExpensePage />} />
-            <Route path="/vehicule" element={<VehiclePage />} />
-            <Route path="/rapports" element={<ReportsPage />} />
-            <Route path="/reglages" element={<SettingsPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={pageFallback}>
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/revenus" element={<IncomePage />} />
+              <Route path="/depenses" element={<ExpensePage />} />
+              <Route path="/vehicule" element={<VehiclePage />} />
+              <Route path="/rapports" element={<ReportsPage />} />
+              <Route path="/reglages" element={<SettingsPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         )}
       </div>
     </BrowserRouter>
