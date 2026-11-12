@@ -12,8 +12,7 @@ import { computeTax } from '../core/tax/taxEngine';
 import { totalDeductibleNonVehicle } from '../core/tax/expenseCalc';
 import {
   summarizeKm,
-  deductibleVehicleExpenses,
-  totalVehicleExpenses,
+  computeVehicleCosts,
   type VehicleKmSummary,
 } from '../core/tax/vehicleCalc';
 import { storage } from '../lib/storage';
@@ -349,7 +348,8 @@ export const useFiscalStore = create<FiscalState>((set, get) => ({
 
     const grossIncomeCents = incomes.reduce((sum, i) => sum + i.amountCents, 0);
     const nonVehicleDeductible = totalDeductibleNonVehicle(expenses, config, taxRegistered);
-    const vehicleDeductibleCents = deductibleVehicleExpenses(vehicle, trips);
+    const vehicleCosts = computeVehicleCosts(vehicle, trips, expenses, config, taxRegistered);
+    const vehicleDeductibleCents = vehicleCosts.deductibleCents;
     const deductibleExpensesCents = nonVehicleDeductible + vehicleDeductibleCents;
 
     const tax = computeTax({ grossIncomeCents, deductibleExpensesCents }, config);
@@ -362,7 +362,7 @@ export const useFiscalStore = create<FiscalState>((set, get) => ({
       netIncomeCents: tax.netBusinessIncomeCents,
       tax,
       km,
-      vehicleTotalCents: totalVehicleExpenses(vehicle),
+      vehicleTotalCents: vehicleCosts.totalCents,
       vehicleDeductibleCents,
     };
   },

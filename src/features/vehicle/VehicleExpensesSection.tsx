@@ -7,12 +7,11 @@ import { VehicleExpenseForm } from './VehicleExpenseForm';
 import { AnnualTotalsPanel } from './AnnualTotalsPanel';
 import { RowActions } from '../../components/RowActions';
 import { formatCents, formatDate } from '../../lib/format/money';
-import {
-  summarizeKm,
-  totalVehicleExpenses,
-  deductibleVehicleExpenses,
-} from '../../core/tax/vehicleCalc';
+import { computeVehicleCosts } from '../../core/tax/vehicleCalc';
+import { loadFiscalConfig } from '../../core/tax/loadConfig';
 import type { VehicleExpense, VehicleExpenseKind } from '../../core/models/vehicle';
+
+const config = loadFiscalConfig(2026);
 
 const KIND_LABELS: Record<VehicleExpenseKind, string> = {
   essence: 'Essence / carburant',
@@ -25,13 +24,18 @@ const KIND_LABELS: Record<VehicleExpenseKind, string> = {
 export function VehicleExpensesSection() {
   const vehicle = useFiscalStore((s) => s.vehicle);
   const trips = useFiscalStore((s) => s.trips);
+  const expenses = useFiscalStore((s) => s.expenses);
+  const taxRegistered = useFiscalStore((s) => s.taxRegistered);
   const deleteVehicleExpense = useFiscalStore((s) => s.deleteVehicleExpense);
   const [editing, setEditing] = useState<VehicleExpense | null>(null);
 
   const sorted = [...vehicle.expenses].sort((a, b) => b.date.localeCompare(a.date));
-  const total = totalVehicleExpenses(vehicle);
-  const deductible = deductibleVehicleExpenses(vehicle, trips);
-  const ratioPct = (summarizeKm(trips).businessRatio * 100).toFixed(0);
+  // Toutes sources : section Véhicule, totaux annuels et dépenses au prorata.
+  const costs = computeVehicleCosts(vehicle, trips, expenses, config, taxRegistered);
+  const total = costs.totalCents;
+  const deductible = costs.deductibleCents;
+  const recoverableTax = costs.recoverable.gstCents + costs.recoverable.qstCents;
+  const ratioPct = (costs.businessRatio * 100).toFixed(0);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
@@ -53,6 +57,11 @@ export function VehicleExpensesSection() {
             <p className="text-sm text-sapin-700">
               dont {formatCents(deductible)} déductibles ({ratioPct} %)
             </p>
+            {taxRegistered && recoverableTax > 0 && (
+              <p className="text-xs text-ardoise-500">
+                + {formatCents(recoverableTax)} de TPS/TVQ récupérables
+              </p>
+            )}
           </div>
         </div>
         {sorted.length === 0 ? (

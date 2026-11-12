@@ -117,10 +117,16 @@ export interface SalesTaxSummary {
   qstNetCents: number;
 }
 
+/**
+ * Les dépenses « au prorata du véhicule » sont exclues ici : leur taxe
+ * récupérable dépend du ratio d'usage commercial et est calculée par
+ * computeVehicleCosts, puis passée dans `vehicleRecoverable`.
+ */
 export function buildSalesTaxSummary(
   incomes: Income[],
   expenses: Expense[],
   config: FiscalConfig,
+  vehicleRecoverable: TaxAmounts = { gstCents: 0, qstCents: 0 },
 ): SalesTaxSummary {
   let gstCollected = 0;
   let qstCollected = 0;
@@ -129,9 +135,10 @@ export function buildSalesTaxSummary(
     gstCollected += t.gstCents;
     qstCollected += t.qstCents;
   }
-  let gstRecoverable = 0;
-  let qstRecoverable = 0;
+  let gstRecoverable = vehicleRecoverable.gstCents;
+  let qstRecoverable = vehicleRecoverable.qstCents;
   for (const exp of expenses) {
+    if (config.expenseCategories[exp.category]?.vehicleProRata === true) continue;
     const t = expenseTaxRecoverable(exp, config);
     gstRecoverable += t.gstCents;
     qstRecoverable += t.qstCents;

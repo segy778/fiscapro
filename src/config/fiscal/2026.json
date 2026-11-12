@@ -101,10 +101,21 @@
     "dueDates": ["2026-03-15", "2026-06-15", "2026-09-15", "2026-12-15"]
   },
 
+  "vehicleSalesTax": {
+    "_comment": "Frais de véhicule assujettis à la TPS/TVQ (récupérables en CTI/RTI au prorata de l'usage commercial pour un inscrit). L'assurance automobile est exonérée de TPS/TVQ et assujettie à la taxe de 9 % sur les primes, non récupérable. Les droits d'immatriculation et le permis (SAAQ) ne sont pas taxables. À valider par un fiscaliste.",
+    "taxableKinds": {
+      "essence": true,
+      "entretien": true,
+      "assurance": false,
+      "immatriculation": false,
+      "autre": true
+    }
+  },
+
   "expenseCategories": {
     "_comment": "Taux de déductibilité par catégorie. deductiblePercent = pourcentage fixe (0..1). 'vehicleProRata' = portion déductible selon le ratio km affaires / km totaux, calculée dynamiquement. Catégories alignées sur le PRD.",
-    "essence_carburant":         { "label": "Essence / carburant",                "vehicleProRata": true },
-    "frais_vehicule":            { "label": "Frais de véhicule (entretien, assurance, immatriculation)", "vehicleProRata": true },
+    "essence_carburant":         { "label": "Essence / carburant",                "vehicleProRata": true, "vehicleKind": "essence" },
+    "frais_vehicule":            { "label": "Frais de véhicule (entretien, assurance, immatriculation)", "vehicleProRata": true, "vehicleKind": "entretien", "_note": "Catégorie mixte : traitée comme taxable par défaut. Pour l'assurance ou l'immatriculation, saisir TPS/TVQ = 0 manuellement, ou utiliser la section Véhicule." },
     "repas_representation":      { "label": "Repas et représentation",             "deductiblePercent": 0.5 },
     "fournitures_bureau":        { "label": "Fournitures de bureau / logiciels",   "deductiblePercent": 1.0 },
     "telephone_internet":        { "label": "Téléphone / Internet",                "deductiblePercent": 1.0, "_note": "Idéalement % usage affaires; 100 % par défaut." },

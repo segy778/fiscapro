@@ -121,3 +121,14 @@ describe('splitIncomeTotal', () => {
     });
   });
 });
+
+describe('buildSalesTaxSummary — frais de véhicule', () => {
+  it('exclut les dépenses au prorata et ajoute la taxe récupérable du véhicule', () => {
+    const expenses: Expense[] = [
+      { id: 'e', date: '2026-01-01', amountCents: 11498, category: 'essence_carburant', deductiblePercent: 1 },
+    ];
+    const s = buildSalesTaxSummary([], expenses, config, { gstCents: 400, qstCents: 798 });
+    expect(s.gstRecoverableCents).toBe(400);
+    expect(s.qstRecoverableCents).toBe(798);
+  });
+});

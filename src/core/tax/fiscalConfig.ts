@@ -84,6 +84,13 @@ export interface ExpenseCategoryConfig {
   deductiblePercent?: number;
   /** true si la portion déductible dépend du ratio d'usage du véhicule. */
   vehicleProRata?: boolean;
+  /** Type de frais de véhicule correspondant (catégories au prorata seulement). */
+  vehicleKind?: 'essence' | 'entretien' | 'assurance' | 'immatriculation' | 'autre';
+}
+
+export interface VehicleSalesTaxParams {
+  /** Par type de frais : true si assujetti à la TPS/TVQ (donc récupérable). */
+  taxableKinds: Record<'essence' | 'entretien' | 'assurance' | 'immatriculation' | 'autre', boolean>;
 }
 
 export interface FiscalConfig {
@@ -99,5 +106,6 @@ export interface FiscalConfig {
   creditRates: CreditRates;
   salesTax: SalesTaxParams;
   installments: InstallmentParams;
+  vehicleSalesTax: VehicleSalesTaxParams;
   expenseCategories: Record<string, ExpenseCategoryConfig>;
 }

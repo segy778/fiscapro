@@ -14,7 +14,8 @@ const expenses: Expense[] = [
   { id: 'e1', date: '2026-01-05', amountCents: 10000, category: 'repas_representation', deductiblePercent: 0.5 },
   { id: 'e2', date: '2026-01-06', amountCents: 20000, category: 'fournitures_bureau', deductiblePercent: 1.0 },
   { id: 'e3', date: '2026-01-07', amountCents: 8000, category: 'fournitures_bureau', deductiblePercent: 1.0 },
-  // dépense de catégorie véhicule -> exclue de la ventilation par catégorie
+  // dépense de catégorie véhicule -> exclue de la ventilation par catégorie,
+  // mais comptée dans les frais de véhicule (au ratio d'usage)
   { id: 'e4', date: '2026-01-08', amountCents: 5000, category: 'essence_carburant', deductiblePercent: 1.0 },
 ];
 const trips: Trip[] = [
@@ -44,9 +45,11 @@ describe('buildAnnualReport', () => {
   });
 
   it('calcule la déduction véhicule selon le ratio km (80 %)', () => {
-    // ratio 80/100 = 0,8 ; frais véhicule 10000 -> 8000 déductibles
+    // ratio 80/100 = 0,8 ; frais véhicule 10000 (section Véhicule)
+    // + 5000 (dépense « Essence ») = 15000 -> 12000 déductibles
     expect(r.km.businessRatio).toBeCloseTo(0.8, 5);
-    expect(r.vehicleDeductibleCents).toBe(8000);
+    expect(r.vehicleTotalCents).toBe(15000);
+    expect(r.vehicleDeductibleCents).toBe(12000);
   });
 
   it('résume la TPS/TVQ perçue', () => {

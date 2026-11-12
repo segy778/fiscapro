@@ -9,8 +9,7 @@ import { computeTax } from './taxEngine';
 import { deductibleExpenseAmount, isVehicleProRata } from './expenseCalc';
 import {
   summarizeKm,
-  totalVehicleExpenses,
-  deductibleVehicleExpenses,
+  computeVehicleCosts,
   type VehicleKmSummary,
 } from './vehicleCalc';
 import { buildSalesTaxSummary, type SalesTaxSummary } from './salesTax';
@@ -91,8 +90,11 @@ export function buildAnnualReport(
   const nonVehicleDeductible = expensesByCategory.reduce((s, c) => s + c.deductibleCents, 0);
 
   const km = summarizeKm(trips);
-  const vehicleTotalCents = totalVehicleExpenses(vehicle);
-  const vehicleDeductibleCents = deductibleVehicleExpenses(vehicle, trips);
+  // Toutes les sources de frais de véhicule (section Véhicule + dépenses au
+  // prorata), taxes de vente comprises.
+  const vehicleCosts = computeVehicleCosts(vehicle, trips, expenses, config, taxRegistered);
+  const vehicleTotalCents = vehicleCosts.totalCents;
+  const vehicleDeductibleCents = vehicleCosts.deductibleCents;
 
   const totalExpensesCents = nonVehicleTotal + vehicleTotalCents;
   const totalDeductibleExpensesCents = nonVehicleDeductible + vehicleDeductibleCents;
@@ -103,7 +105,7 @@ export function buildAnnualReport(
     registered: taxRegistered,
     incomesWithGstQst: gstQstIncomes.length,
     grossWithGstQstCents: gstQstIncomes.reduce((s, i) => s + i.amountCents, 0),
-    salesTax: taxRegistered ? buildSalesTaxSummary(incomes, expenses, config) : null,
+    salesTax: taxRegistered ? buildSalesTaxSummary(incomes, expenses, config, vehicleCosts.recoverable) : null,
   };
 
   const tax = computeTax(
